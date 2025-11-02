@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Python Compiler (Pyodide + pyarrow)</title>
+<style>
+body { font-family: "Segoe UI", sans-serif; background: #f9f9f9; margin: 0; padding: 20px; }
+#editor { width: 100%; height: 260px; font-family: monospace; font-size: 14px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+#output { width: 100%; height: 220px; white-space: pre-wrap; background: #0b1220; color: #e6eef8; padding: 10px; border-radius: 8px; margin-top: 10px; overflow-y: auto; }
+button { margin: 5px 8px 10px 0; padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; background: #2563eb; color: #fff; }
+button:hover { filter:brightness(.95); }
+.note { font-size:13px; color:#475569; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<h2>Python Compiler — Pyodide + pyarrow</h2>
+<p class="note">This page attempts to load <strong>pyarrow</strong> alongside numpy, pandas, and matplotlib using Pyodide. Loading pyarrow may take longer — please wait until the status shows <em>Ready</em>.</p>
+
+<textarea id="editor"># Test pyarrow availability
+import pyarrow as pa
+import pyarrow.compute as pc
+import numpy as np
+import pandas as pd
+
+print('pyarrow version:', pa.__version__)
+arr = pa.array([1,2,3,4])
+print('arrow array:', arr)
+
+df = pd.DataFrame({'a': [1,2,3], 'b': [10,20,30]})
+print('pandas df:\n', df)</textarea><br>
+
+<button id="run">▶ Run</button>
+<button id="clear">🧹 Clear Output</button>
+<button id="download">⬇ Download Code</button>
+
+<pre id="output">Loading Pyodide (v0.28.0) and packages... please wait</pre>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.28.0/full/pyodide.js"></script>
+<script>
+let pyodide = null;
+let ready = false;
+const output = document.getElementById('output');
+
+async function init() {
+  output.textContent = 'Loading Pyodide runtime...';
+  pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/' });
+  output.textContent = 'Pyodide loaded — installing packages (numpy, pandas, matplotlib, pyarrow)... this may take some time.';
+  try {
+    // Try to load from built-in packages first
+    await pyodide.loadPackage(['numpy','pandas','matplotlib','pyarrow']);
+    output.textContent = '✅ Packages loaded: numpy, pandas, matplotlib, pyarrow. Ready.';
+    ready = true;
+  } catch (err) {
+    console.warn('loadPackage failed:', err);
+    output.textContent = 'loadPackage failed for pyarrow — attempting micropip.install("pyarrow") — this may be slow.';
+    try {
+      await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('pyarrow')
+`);
+      output.textContent = '✅ pyarrow installed via micropip. Ready.';
+      ready = true;
+    } catch (err2) {
+      console.error('micropip install failed:', err2);
+      output.textContent = '⚠️ Could not load pyarrow in the browser. You can still use numpy/pandas/matplotlib. See console for details.';
+      // Ensure numpy/pandas/matplotlib still available
+      try {
+        await pyodide.loadPackage(['numpy','pandas','matplotlib']);
+        output.textContent = '✅ numpy, pandas, matplotlib loaded. pyarrow unavailable.';
+        ready = true;
+      } catch (err3) {
+        output.textContent = '❌ Failed to load essential packages: ' + String(err3);
+      }
+    }
+  }
+}
+
+function captureOutput() {
+  // Prepare a Python output catcher so we can read back prints
+  pyodide.runPython(`
+import sys
+class OutputCatcher:
+    def __init__(self):
+        self.output = ''
+    def write(self, txt):
+        self.output += str(txt)
+    def flush(self):
+        pass
+sys.stdout = OutputCatcher()
+sys.stderr = sys.stdout
+`);
+}
+
+document.getElementById('run').addEventListener('click', async () => {
+  if (!pyodide) { output.textContent = 'Pyodide not initialized.'; return; }
+  output.textContent = '⏳ Running...';
+  try {
+    captureOutput();
+    const code = document.getElementById('editor').value;
+    await pyodide.runPythonAsync(code);
+    const res = pyodide.runPython('sys.stdout.output');
+    output.textContent = res || '(no output)';
+  } catch (err) {
+    output.textContent = '❌ Error:\n' + String(err);
+    console.error(err);
+  }
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+  output.textContent = '';
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  const code = document.getElementById('editor').value;
+  const blob = new Blob([code], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'student_code.py';
+  a.click();
+});
+
+init();
+</script>
+</body>
+</html>
