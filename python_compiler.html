@@ -1,216 +1,126 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Embeddable Python Playground (Pyodide)</title>
-  <style>
-    :root{ --bg:#0f1724; --panel:#0b1220; --muted:#94a3b8; --accent:#60a5fa; }
-    body{ margin:0; font-family:Inter,Segoe UI,Helvetica,Arial; background:var(--bg); color:#e6eef8; }
-    .wrap{ display:grid; grid-template-columns:1fr 420px; gap:12px; height:100vh; padding:12px; box-sizing:border-box; }
-    .editor, .side{ background:var(--panel); border-radius:10px; padding:12px; box-shadow:0 6px 18px rgba(2,6,23,.6); overflow:hidden; }
-    .editor{ display:flex; flex-direction:column; }
-    .toolbar{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
-    button{ background:transparent; border:1px solid rgba(255,255,255,.06); color:inherit; padding:8px 10px; border-radius:8px; cursor:pointer; }
-    button.primary{ background:linear-gradient(90deg,#2563eb,#06b6d4); color:white; border:none; }
-    select, label{ color:var(--muted); }
-    textarea#code{ width:100%; height:calc(100% - 40px); background:#071022; color:#dbeafe; border:none; padding:12px; border-radius:8px; font-family:monospace; font-size:13px; resize:none; }
-    .output{ height:50%; overflow:auto; padding:8px; background:#021024; border-radius:8px; font-family:monospace; font-size:13px; }
-    .side .section{ margin-bottom:12px; }
-    .status{ font-size:13px; color:var(--muted); }
-    #plot-area{ background:#021024; padding:8px; border-radius:8px; min-height:240px; display:flex; align-items:center; justify-content:center; }
-    footer{ position:fixed; left:12px; right:12px; bottom:12px; text-align:center; color:var(--muted); font-size:12px; }
-    .small{ font-size:12px; color:var(--muted); }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Python Compiler (Pyodide + pyarrow)</title>
+<style>
+body { font-family: "Segoe UI", sans-serif; background: #f9f9f9; margin: 0; padding: 20px; }
+#editor { width: 100%; height: 260px; font-family: monospace; font-size: 14px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+#output { width: 100%; height: 220px; white-space: pre-wrap; background: #0b1220; color: #e6eef8; padding: 10px; border-radius: 8px; margin-top: 10px; overflow-y: auto; }
+button { margin: 5px 8px 10px 0; padding: 8px 16px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; background: #2563eb; color: #fff; }
+button:hover { filter:brightness(.95); }
+.note { font-size:13px; color:#475569; margin-bottom:8px; }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="editor">
-      <div class="toolbar">
-        <button id="runBtn" class="primary">Run</button>
-        <button id="stopBtn">Stop</button>
-        <button id="clearOut">Clear Output</button>
-        <label style="margin-left:8px;">Runtime:</label>
-        <select id="runtimeSelect">
-          <option value="pyodide">Pyodide (in-browser)</option>
-        </select>
-        <div style="flex:1"></div>
-        <div class="status" id="status">Pyodide not loaded.</div>
-      </div>
-      <textarea id="code" spellcheck="false"># Example: uses numpy, pandas, matplotlib
-import sys
-print('Hello from Pyodide')
+<h2>Python Compiler — Pyodide + pyarrow</h2>
+<p class="note">This page attempts to load <strong>pyarrow</strong> alongside numpy, pandas, and matplotlib using Pyodide. Loading pyarrow may take longer — please wait until the status shows <em>Ready</em>.</p>
+
+<textarea id="editor"># Test pyarrow availability
+import pyarrow as pa
+import pyarrow.compute as pc
 import numpy as np
 import pandas as pd
-print('numpy', np.__version__)
-print('pandas', pd.__version__)
 
-# simple plot
-import matplotlib.pyplot as plt
-x = np.linspace(0, 2*np.pi, 50)
-y = np.sin(x)
-plt.figure(figsize=(6,3))
-plt.plot(x,y)
-plt.title('Sine wave')
-plt.xlabel('x')
-plt.tight_layout()
-plt.show()
-</textarea>
-    </div>
+print('pyarrow version:', pa.__version__)
+arr = pa.array([1,2,3,4])
+print('arrow array:', arr)
 
-    <div class="side">
-      <div class="section">
-        <strong>Output</strong>
-        <div class="output" id="stdout"></div>
-      </div>
-      <div class="section">
-        <strong>Plot</strong>
-        <div id="plot-area">No plot yet.</div>
-      </div>
-      <div class="section small">
-        <strong>Packages available</strong>
-        <div>numpy, pandas, matplotlib, scipy, scikit-learn (via micropip when available). You can also install pure-Python packages with micropip.</div>
-      </div>
-      <div class="section small">
-        <strong>Embed</strong>
-        <div>Embed this file into your LMS/test page using an &lt;iframe&gt; that points to this HTML file.</div>
-      </div>
-    </div>
-  </div>
+df = pd.DataFrame({'a': [1,2,3], 'b': [10,20,30]})
+print('pandas df:\n', df)</textarea><br>
 
-  <footer>Note: This runs fully in the student's browser using Pyodide (WebAssembly). For production exams requiring strict sandboxing, consider a server-side executor (Docker, kubernetes). </footer>
+<button id="run">▶ Run</button>
+<button id="clear">🧹 Clear Output</button>
+<button id="download">⬇ Download Code</button>
 
-  <!-- Pyodide -->
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-  <script>
-    // Basic in-browser Python runner using Pyodide
-    let pyodide = null;
-    const statusEl = document.getElementById('status');
-    const stdoutEl = document.getElementById('stdout');
-    const plotArea = document.getElementById('plot-area');
+<pre id="output">Loading Pyodide (v0.28.0) and packages... please wait</pre>
 
-    async function initPyodide(){
-      statusEl.textContent = 'Loading Pyodide...';
-      pyodide = await loadPyodide({indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/'});
-      statusEl.textContent = 'Pyodide loaded. Installing packages...';
-      // Preload packages that are commonly available
-      const pkgs = ['numpy','pandas','matplotlib'];
-      try{
-        await pyodide.loadPackage(pkgs);
-        statusEl.textContent = 'Packages loaded: ' + pkgs.join(', ');
-      }catch(e){
-        console.warn('Package load error', e);
-        statusEl.textContent = 'Pyodide loaded (packages may be installed on demand).';
-      }
+<script src="https://cdn.jsdelivr.net/pyodide/v0.28.0/full/pyodide.js"></script>
+<script>
+let pyodide = null;
+let ready = false;
+const output = document.getElementById('output');
 
-      // Install micropip if not present
-      try{
-        await pyodide.runPythonAsync(`import micropip`);
-      }catch(e){
-        await pyodide.runPythonAsync(`import sys\nimport importlib\nimport types`);
-      }
-
-      // Hook up matplotlib to render to a PNG and display in the plot area
+async function init() {
+  output.textContent = 'Loading Pyodide runtime...';
+  pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/' });
+  output.textContent = 'Pyodide loaded — installing packages (numpy, pandas, matplotlib, pyarrow)... this may take some time.';
+  try {
+    // Try to load from built-in packages first
+    await pyodide.loadPackage(['numpy','pandas','matplotlib','pyarrow']);
+    output.textContent = '✅ Packages loaded: numpy, pandas, matplotlib, pyarrow. Ready.';
+    ready = true;
+  } catch (err) {
+    console.warn('loadPackage failed:', err);
+    output.textContent = 'loadPackage failed for pyarrow — attempting micropip.install("pyarrow") — this may be slow.';
+    try {
       await pyodide.runPythonAsync(`
-import sys
-import io
-from js import console
-
-# ensure matplotlib uses Agg backend
-import matplotlib
-matplotlib.use('Agg')
+import micropip
+await micropip.install('pyarrow')
 `);
-
-      statusEl.textContent = 'Ready';
-    }
-
-    // capture stdout and stderr
-    function appendStd(text){
-      const pre = document.createElement('pre');
-      pre.textContent = text;
-      stdoutEl.appendChild(pre);
-      stdoutEl.scrollTop = stdoutEl.scrollHeight;
-    }
-
-    document.getElementById('clearOut').addEventListener('click', ()=>{ stdoutEl.innerHTML=''; plotArea.innerHTML='No plot yet.'; });
-
-    let running = false;
-    let runController = { cancelled:false };
-
-    async function runCode(){
-      if(!pyodide){
-        appendStd('Pyodide not initialized yet.');
-        return;
-      }
-      const code = document.getElementById('code').value;
-      stdoutEl.innerHTML=''; plotArea.innerHTML='Running...';
-
-      // Prepare a Python wrapper that captures stdout and saves matplotlib figure(s) to PNG bytes
-      const runner = `
-import sys, io
-from js import console
-output = io.StringIO()
-old_out, old_err = sys.stdout, sys.stderr
-sys.stdout = output
-sys.stderr = output
-
-# run user code
-try:
-${code.split('\n').map(line=> '    '+line).join('\n')}
-except Exception as e:
-    import traceback
-    traceback.print_exc()
-
-sys.stdout = old_out
-sys.stderr = old_err
-res = output.getvalue()
-# collect figures
-import matplotlib
-import base64, io
-from matplotlib import pyplot as plt
-images = []
-for i in plt.get_fignums():
-    buf = io.BytesIO()
-    plt.figure(i)
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    b64 = base64.b64encode(buf.read()).decode('ascii')
-    images.append(b64)
-plt.close('all')
-
-res, images
-`;
-      try{
-        const [res, images] = await pyodide.runPythonAsync(runner);
-        if(res) appendStd(res);
-        plotArea.innerHTML = '';
-        if(images && images.length){
-          images.forEach(b64=>{
-            const img = document.createElement('img');
-            img.src = 'data:image/png;base64,'+b64;
-            img.style.maxWidth = '100%';
-            img.style.borderRadius = '6px';
-            plotArea.appendChild(img);
-          });
-        } else {
-          if(!res) plotArea.textContent = 'No plot produced.';
-        }
-      }catch(err){
-        appendStd('Runtime error: ' + err);
-        console.error(err);
+      output.textContent = '✅ pyarrow installed via micropip. Ready.';
+      ready = true;
+    } catch (err2) {
+      console.error('micropip install failed:', err2);
+      output.textContent = '⚠️ Could not load pyarrow in the browser. You can still use numpy/pandas/matplotlib. See console for details.';
+      // Ensure numpy/pandas/matplotlib still available
+      try {
+        await pyodide.loadPackage(['numpy','pandas','matplotlib']);
+        output.textContent = '✅ numpy, pandas, matplotlib loaded. pyarrow unavailable.';
+        ready = true;
+      } catch (err3) {
+        output.textContent = '❌ Failed to load essential packages: ' + String(err3);
       }
     }
+  }
+}
 
-    document.getElementById('runBtn').addEventListener('click', runCode);
-    document.getElementById('stopBtn').addEventListener('click', ()=>{
-      // There is no straightforward way to kill a running Pyodide execution from JS
-      // This button simply notes cancellation intent for long-running code that checks the flag.
-      runController.cancelled = true;
-      appendStd('[Stop requested — long-running Python code must check for cancellation flag]');
-    });
+function captureOutput() {
+  // Prepare a Python output catcher so we can read back prints
+  pyodide.runPython(`
+import sys
+class OutputCatcher:
+    def __init__(self):
+        self.output = ''
+    def write(self, txt):
+        self.output += str(txt)
+    def flush(self):
+        pass
+sys.stdout = OutputCatcher()
+sys.stderr = sys.stdout
+`);
+}
 
-    // initialize
-    initPyodide();
-  </script>
+document.getElementById('run').addEventListener('click', async () => {
+  if (!pyodide) { output.textContent = 'Pyodide not initialized.'; return; }
+  output.textContent = '⏳ Running...';
+  try {
+    captureOutput();
+    const code = document.getElementById('editor').value;
+    await pyodide.runPythonAsync(code);
+    const res = pyodide.runPython('sys.stdout.output');
+    output.textContent = res || '(no output)';
+  } catch (err) {
+    output.textContent = '❌ Error:\n' + String(err);
+    console.error(err);
+  }
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+  output.textContent = '';
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  const code = document.getElementById('editor').value;
+  const blob = new Blob([code], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'student_code.py';
+  a.click();
+});
+
+init();
+</script>
 </body>
 </html>
